@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibe Study - Bug Fixed Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        [v-cloak] { display: none; }
+        .card-container { perspective: 1000px; height: 420px; width: 100%; position: relative; }
+        .card-scaled { transform: scale(0.9); transform-origin: center; }
+        .flashcard-wrapper {
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .is-flipped { transform: rotateY(180deg); }
+        .card-face {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 2rem; border: 4px solid #f1f5f9;
+            background: white; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.15);
+        }
+        .card-front { transform: rotateY(180deg); }
+        
+        /* 动画重置逻辑优化 */
+        .swipe-left { transform: rotateY(180deg) translateX(-500px) rotate(-15deg) !important; opacity: 0; transition: all 0.4s ease-in !important; }
+        .swipe-right { transform: rotateY(180deg) translateX(500px) rotate(15deg) !important; opacity: 0; transition: all 0.4s ease-in !important; }
+        
+        .speaking { transform: scale(1.1); color: #4f46e5; transition: all 0.2s; }
+        
+        .card-tip {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            font-size: 11px; font-weight: 900; display: flex; flex-direction: column; align-items: center;
+            text-transform: uppercase; letter-spacing: 0.1em; pointer-events: none;
+        }
+        .tip-text { writing-mode: vertical-lr; margin: 5px 0; }
+        
+        /* Two-card stack styles */
+        .second-card {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: rotate(5deg);
+            opacity: 0.85;
+            transition: transform 0.5s ease, opacity 0.5s ease;
+            pointer-events: none;
+        }
+        .promote { transform: rotate(0deg) !important; }
+        .fade-in-second { opacity: 0 !important; }
+        
+        .fixed-trophy {
+            margin: 0;
+            width: fit-content;
+            background: white; padding: 0.6rem 1.2rem; border-radius: 99px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            z-index: 100; display: flex; align-items: center; gap: 8px; border: 2px solid #fef3c7;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .trophy-bump { transform: scale(1.2); border-color: #fbbf24; }
+
+        /* Monster Styles */
+        .monster-container {
+            position: fixed; top: 50%; 
+            width: 140px; height: 140px; z-index: 0; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none; 
+        }
+        
+        /* 
+           Left: Rotate 90deg (Bottom on Left), Scale 1.75
+           Right: Rotate -90deg (Bottom on Right), Scale 1.75
+           Position: Moved inward to 0px to show mouth
+        */
+        .monster-left { left: 0px; transform: translateY(-50%) translateY(28px) rotate(90deg) scale(1.75); }
+        .monster-right { right: 0px; transform: translateY(-50%) translateY(28px) rotate(-90deg) scale(1.75); }
+        
+        @media (max-width: 640px) {
+            .monster-left { left: -10px; transform: translateY(-50%) translateY(28px) rotate(90deg) scale(1.2); }
+            .monster-right { right: -10px; transform: translateY(-50%) translateY(28px) rotate(-90deg) scale(1.2); }
+        }
+
+        .monster-body { 
+            transition: transform 0.2s; 
+            transform-origin: center bottom; 
+            overflow: visible; 
+        }
+
+        
+        /* 动画关键帧定义 */
+        .monster-chewing { animation: chew 0.4s infinite alternate; }
+        @keyframes chew { 
+            0% { transform: translateY(0); } 
+            100% { transform: translateY(1.5px); } 
+        }
+
+        .monster-satisfied { animation: satisfy 1s forwards; }
+        @keyframes satisfy {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-2px); }
+            100% { transform: translateY(0); }
+        }
+        .monster-evil { animation: evilLaugh 1.2s forwards; }
+        @keyframes evilLaugh {
+            0% { transform: scale(1) rotate(0deg); }
+            25% { transform: scale(1.05) rotate(-5deg); }
+            50% { transform: scale(1.1) rotate(5deg); }
+            75% { transform: scale(1.05) rotate(-5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+
+        .flying-heart {
+            position: fixed; font-size: 24px; pointer-events: none; z-index: 200;
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .heart-trail {
+            position: fixed; font-size: 24px; pointer-events: none; z-index: 199;
+            opacity: 0.6; transition: all 0.5s ease-out;
+        }
+        .touch-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+        /* Responsive adjustments for monsters */
+        @media (max-width: 640px) {
+            .monster-left { left: -40px; transform: translateY(-50%) translateY(28px) scale(0.8); }
+            .monster-right { right: -40px; transform: translateY(-50%) translateY(28px) scale(0.8); }
+        }
+    </style>
+</head>
+<body class="bg-indigo-50 flex items-center justify-center min-h-screen font-sans overflow-hidden">
+    
+    <div id="app" v-cloak class="w-full max-w-md p-4 relative h-screen flex flex-col justify-center">
+        
+        <!-- Flying Hearts Container -->
+
+        <div ref="heartsContainer" class="fixed inset-0 pointer-events-none z-[150]"></div>
+
+        <!-- Monsters -->
+        <div v-if="started" class="monster-container monster-left" :style="monsterTransform.left">
+            <svg width="140" height="140" viewBox="0 0 140 140" class="monster-body" :class="{ 'monster-chewing': monsterState.left === 'chewing', 'monster-satisfied': monsterState.left === 'satisfied', 'monster-evil': monsterState.left === 'evil' }">
+                <!-- Horns -->
+                <path d="M40,40 Q30,10 50,15 L55,45 Z" fill="#60a5fa" stroke="#2563eb" stroke-width="2" />
+                <path d="M40,25 Q45,28 52,22" fill="none" stroke="#2563eb" stroke-width="2" />
+                <path d="M38,32 Q43,35 53,30" fill="none" stroke="#2563eb" stroke-width="2" />
+                
+                <path d="M100,40 Q110,10 90,15 L85,45 Z" fill="#60a5fa" stroke="#2563eb" stroke-width="2" />
+                <path d="M100,25 Q95,28 88,22" fill="none" stroke="#2563eb" stroke-width="2" />
+                <path d="M102,32 Q97,35 87,30" fill="none" stroke="#2563eb" stroke-width="2" />
+
+                <!-- Furry Body Red -->
+                <!-- 使用更圆润但带一点毛刺感的路径 -->
+                <path d="M20,130 Q10,130 10,90 Q5,50 40,35 Q70,25 100,35 Q135,50 130,90 Q130,130 120,130 Z" fill="#93c5fd" stroke="#3b82f6" stroke-width="3" />
+                
+                <!-- Blush -->
+                <ellipse cx="35" cy="75" rx="6" ry="3" fill="#fda4af" opacity="0.8" />
+                <ellipse cx="105" cy="75" rx="6" ry="3" fill="#fda4af" opacity="0.8" />
+
+                <!-- Eyes -->
+                <g v-if="monsterState.left === 'satisfied'">
+                    <!-- Happy Eyes -->
+                    <path d="M45,60 Q55,50 65,60" fill="none" stroke="#3730a3" stroke-width="4" stroke-linecap="round" />
+                    <path d="M75,60 Q85,50 95,60" fill="none" stroke="#3730a3" stroke-width="4" stroke-linecap="round" />
+                </g>
+                <g v-else>
+                    <!-- Big Eyes -->
+                    <circle cx="55" cy="55" r="18" fill="white" stroke="#3b82f6" stroke-width="2" />
+                    <circle cx="55" cy="55" :r="6 + (mouthOpen.left/8)" fill="#4b5563" />
+                    <circle cx="58" cy="52" r="2" fill="white" /> <!-- Eye shine -->
+                    
+                    <circle cx="85" cy="55" r="18" fill="white" stroke="#3b82f6" stroke-width="2" />
+                    <circle cx="85" cy="55" :r="6 + (mouthOpen.left/8)" fill="#4b5563" />
+                    <circle cx="88" cy="52" r="2" fill="white" /> <!-- Eye shine -->
+                </g>
+                
+                <!-- Dynamic Mouth with Tooth -->
+                <g transform="translate(0, 15)">
+                    <path :d="getMouthPath('left')" data-mouth="left" fill="#333" />
+                    <path :d="getToothPath('left')" fill="white" />
+                </g>
+            </svg>
+        </div>
+
+        <div v-if="started" class="monster-container monster-right" :style="monsterTransform.right">
+            <svg width="140" height="140" viewBox="0 0 140 140" class="monster-body" :class="{ 'monster-chewing': monsterState.right === 'chewing', 'monster-satisfied': monsterState.right === 'satisfied' }">
+                <!-- Horns -->
+                <path d="M40,40 Q30,10 50,15 L55,45 Z" fill="#86efac" stroke="#15803d" stroke-width="2" />
+                <path d="M40,25 Q45,28 52,22" fill="none" stroke="#15803d" stroke-width="2" />
+                <path d="M38,32 Q43,35 53,30" fill="none" stroke="#15803d" stroke-width="2" />
+                
+                <path d="M100,40 Q110,10 90,15 L85,45 Z" fill="#86efac" stroke="#15803d" stroke-width="2" />
+                <path d="M100,25 Q95,28 88,22" fill="none" stroke="#15803d" stroke-width="2" />
+                <path d="M102,32 Q97,35 87,30" fill="none" stroke="#15803d" stroke-width="2" />
+
+                <!-- Furry Body Green -->
+                <path d="M20,130 Q10,130 10,90 Q5,50 40,35 Q70,25 100,35 Q135,50 130,90 Q130,130 120,130 Z" fill="#bbf7d0" stroke="#22c55e" stroke-width="3" />
+                
+                <!-- Blush -->
+                <ellipse cx="35" cy="75" rx="6" ry="3" fill="#fca5a5" opacity="0.8" />
+                <ellipse cx="105" cy="75" rx="6" ry="3" fill="#fca5a5" opacity="0.8" />
+
+                <!-- Eyes -->
+                <g v-if="monsterState.right === 'satisfied'">
+                    <!-- Happy Eyes -->
+                    <path d="M45,60 Q55,50 65,60" fill="none" stroke="#14532d" stroke-width="4" stroke-linecap="round" />
+                    <path d="M75,60 Q85,50 95,60" fill="none" stroke="#14532d" stroke-width="4" stroke-linecap="round" />
+                </g>
+                <g v-else>
+                    <!-- Big Eyes -->
+                    <circle cx="55" cy="55" r="18" fill="white" stroke="#22c55e" stroke-width="2" />
+                    <circle cx="55" cy="55" :r="6 + (mouthOpen.right/8)" fill="#4b5563" />
+                    <circle cx="58" cy="52" r="2" fill="white" />
+                    
+                    <circle cx="85" cy="55" r="18" fill="white" stroke="#22c55e" stroke-width="2" />
+                    <circle cx="85" cy="55" :r="6 + (mouthOpen.right/8)" fill="#4b5563" />
+                    <circle cx="88" cy="52" r="2" fill="white" />
+                </g>
+                
+                <!-- Dynamic Mouth with Tooth -->
+                <g transform="translate(0, 15)">
+                    <path :d="getMouthPath('right')" data-mouth="right" fill="#333" />
+                    <path :d="getToothPath('right')" fill="white" />
+                </g>
+            </svg>
+        </div>
+
+        <div ref="statsBar" class="grid grid-cols-2 gap-4 mb-8">
+            <div @click="openModal('current')" class="bg-white p-4 rounded-2xl shadow-sm border-b-4 border-blue-400 text-center cursor-pointer active:scale-95 transition">
+                <div class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Review</div>
+                <div class="text-3xl font-black text-blue-600">{{ words.length }}</div>
+            </div>
+            <div @click="openModal('learned')" class="bg-white p-4 rounded-2xl shadow-sm border-b-4 border-green-400 text-center cursor-pointer active:scale-95 transition">
+                <div class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Mastered</div>
+                <div class="text-3xl font-black text-green-600">{{ learnedList.length }}</div>
+            </div>
+        </div>
+        
+        <div v-if="started" :style="{ position: 'fixed', right: '8px', top: iconsPosY + 'px' }" class="z-[160] flex items-center gap-2">
+            <div ref="trophyBtn" class="fixed-trophy animate__animated animate__bounceIn" :class="{ 'trophy-bump': trophyBump }">
+                <span class="text-xl">🏆</span>
+                <span class="font-black text-yellow-600 text-lg">{{ totalScore }}</span>
+            </div>
+            <button @click="openAbout" class="bg-white text-indigo-600 rounded-full w-9 h-9 flex items-center justify-center active:scale-95 transition"
+                style="box-shadow: 0 8px 16px rgba(0,0,0,0.15);">
+                💡
+            </button>
+        </div>
+
+        <div v-if="!started" class="bg-white p-10 rounded-3xl shadow-xl text-center border-2 border-indigo-100">
+            <div class="text-6xl mb-6">✍️</div>
+            <h1 class="text-2xl font-bold text-indigo-900 mb-2 italic">Word Expedition</h1>
+            <p class="text-xs text-gray-400 mb-6">Learning Technology Lab - University of Oulu</p>
+            <button @click="startStudy" class="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-bold shadow-lg w-full">Start Expedition</button>
+        </div>
+
+        <div v-else-if="words.length > 0" class="card-container card-scaled">
+            <!-- Top card (1号卡) -->
+            <div :key="currentWord.base" ref="cardWrapper" :class="['flashcard-wrapper', { 'is-flipped': isFlipped }]" @click="handleCardClick" style="z-index: 2;">
+                
+                <div class="card-face card-back p-8">
+                    <div class="text-7xl mb-6">{{ currentWord.icon }}</div>
+                    <div class="text-3xl font-bold text-slate-700">{{ currentWord.base }}</div>
+                    <div class="mt-8 text-[20px] text-indigo-300 uppercase tracking-widest animate-pulse font-bold opacity-90">Tap to reveal</div>
+                </div>
+
+                <div class="card-face card-front p-8 relative overflow-hidden">
+                    <div class="card-tip left-4 text-red-400 opacity-60">
+                        <span>◀</span><span class="tip-text">FORGOT</span>
+                    </div>
+                    <div class="card-tip right-4 text-green-500 opacity-60">
+                        <span class="tip-text">GOT IT</span><span>▶</span>
+                    </div>
+
+                    <div class="text-xl font-medium text-slate-400 mb-6" :class="{ 'speaking font-bold': activeSpeech === 'base' }">
+                        {{ currentWord.base }}
+                    </div>
+                    <div class="flex flex-col gap-4 text-center">
+                        <div class="text-4xl font-black text-slate-800" :class="{ 'speaking': activeSpeech === 'past' }">
+                            {{ currentWord.past }}
+                        </div>
+                        <div class="text-4xl font-black text-slate-800" :class="{ 'speaking': activeSpeech === 'pp' }">
+                            {{ currentWord.participle }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bottom card (2号卡) -->
+            <div v-if="words[1]" :key="words[1].base + '_second'" ref="secondWrapper" :class="['flashcard-wrapper', 'second-card', { 'promote': promoteSecond, 'fade-in-second': secondFadeIn }]" style="z-index: 1;">
+                <div class="card-face card-back p-8">
+                    <div class="text-7xl mb-6">{{ words[1].icon }}</div>
+                    <div class="text-3xl font-bold text-slate-700">{{ words[1].base }}</div>
+                    <div class="mt-8 text-[10px] text-indigo-200 uppercase tracking-widest font-bold">Next up</div>
+                </div>
+                <div class="card-face card-front p-8 relative overflow-hidden">
+                    <div class="text-xl font-medium text-slate-400 mb-6">
+                        {{ words[1].base }}
+                    </div>
+                    <div class="flex flex-col gap-4 text-center">
+                        <div class="text-4xl font-black text-slate-800">
+                            {{ words[1].past }}
+                        </div>
+                        <div class="text-4xl font-black text-slate-800">
+                            {{ words[1].participle }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            
+        </div>
+        
+        <!-- 下方按钮区域 -->
+        <div v-if="started && words.length > 0" class="flex justify-between gap-6 w-full px-2 mt-3">
+            <button @click.stop="triggerSwipe('left')" class="flex-1 bg-white px-5 py-4 rounded-2xl shadow-sm border-2 border-transparent hover:border-red-100 active:scale-95 transition flex items-center justify-between">
+                <span class="text-red-500 text-2xl">◀</span>
+                <span class="text-red-500 font-bold italic uppercase text-sm md:text-base tracking-tight">Forgot</span>
+            </button>
+            <button @click.stop="triggerSwipe('right')" class="flex-1 bg-white px-5 py-4 rounded-2xl shadow-sm border-2 border-transparent hover:border-green-100 active:scale-95 transition flex items-center justify-between">
+                <span class="text-green-500 font-bold italic uppercase text-sm md:text-base tracking-tight">Got It</span>
+                <span class="text-green-500 text-2xl">▶</span>
+            </button>
+        </div>
+
+        <div v-if="started && words.length === 0" class="bg-white p-12 rounded-3xl shadow-xl text-center animate__animated animate__tada">
+            <div class="text-7xl mb-6">🥇</div>
+            <h2 class="text-2xl font-bold text-slate-800">Mission Accomplished!</h2>
+            <button @click="resetData" class="mt-12 text-[10px] text-gray-300 uppercase tracking-widest">Reset All</button>
+        </div>
+
+        <div v-if="modal.show" class="fixed inset-0 bg-indigo-950/60 backdrop-blur-sm flex items-center justify-center p-6 z-[200]">
+            <div ref="modalPanel" class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate__animated animate__zoomIn animate__faster">
+                <div class="p-5 border-b flex justify-between items-center relative">
+                    <h3 v-if="modal.title !== 'About'" class="font-black text-indigo-700 uppercase tracking-widest text-sm w-full text-center">{{ modal.title }}</h3>
+                    <button @click="closeModal" class="text-slate-300 text-3xl leading-none absolute right-5 top-3">&times;</button>
+                </div>
+                <div class="max-h-80 overflow-y-auto touch-scroll p-4 text-sm">
+                    <div v-if="modal.title === 'About'" class="space-y-3 text-slate-700">
+                        <p class="text-center text-lg font-black text-indigo-800">About</p>
+                        <p><span class="font-semibold">Word Expedition</span> helps students in grades 7–9 remember the different forms of irregular verbs.</p>
+                        <div class="bg-indigo-50 rounded-xl p-3 space-y-2">
+                            <p class="font-semibold text-slate-800">Daily Flow</p>
+                            <p>Each day you get 20 new words. Mastered words will return to review according to the forgetting curve (1, 2, 5, 15, 30 days).</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-xl p-3 space-y-2">
+                            <p class="font-semibold text-slate-800">How It Works</p>
+                            <p><span class="text-green-600 font-bold">Swipe right</span> when you’ve got it.</p>
+                            <p><span class="text-red-500 font-bold">Swipe left</span> if you forgot.</p>
+                        </div>
+                    </div>
+                    <div v-else>
+                        <div v-for="w in modal.list" :key="w.base" class="m-2 p-3 bg-slate-50 rounded-xl flex items-center gap-4">
+                            <span class="text-2xl">{{ w.icon }}</span>
+                            <div class="flex-1 text-left">
+                                <div class="font-bold text-slate-800 text-sm">{{ w.base }}</div>
+                                <div class="text-[10px] text-slate-400 italic">{{ w.past }} / {{ w.participle }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SOUNDS = {
+            swipe: new Audio(),
+            success: new Audio(),
+            flip: new Audio(),
+            celebrate: new Audio(),
+            motivate: new Audio(),
+            ding: new Audio()
+        };
+
+        const { createApp } = Vue
+        createApp({
+            data() {
+                return {
+                    started: false,
+                    isFlipped: false,
+                    activeSpeech: '',
+                    totalScore: 0,
+                    words: [],
+                    learnedList: [],
+                    swipeClass: '',
+                    isAnimating: false,
+                    promoteSecond: false,
+                    secondFadeIn: false,
+                    modal: { show: false, title: '', list: [] },
+                    monsterState: { left: 'idle', right: 'idle' },
+                    mouthOpen: { left: 0, right: 0 },
+                    trophyBump: false,
+                    masterBank: [],
+                    audioFallback: {},
+                    viewport: { w: window.innerWidth, h: window.innerHeight },
+                    iconsPosY: 80,
+                    modalOnboarding: false
+                }
+            },
+            computed: { 
+                currentWord() { return this.words[0] || {} },
+                monsterTransform() {
+                    const baseW = 1024, baseH = 600;
+                    const areaRatio = (this.viewport.w * this.viewport.h) / (baseW * baseH);
+                    const factor = Math.max(0.6, Math.min(2.0, Math.sqrt(areaRatio)));
+                    const scaleBase = 1.75 * factor;
+                    const left = `translateY(-50%) translateY(28px) rotate(90deg) scale(${scaleBase})`;
+                    const right = `translateY(-50%) translateY(28px) rotate(-90deg) scale(${scaleBase})`;
+                    return { left: { transform: left }, right: { transform: right } };
+                }
+            },
+            mounted() { 
+                this.loadData(); 
+                window.addEventListener('resize', this.onResize);
+                this.$nextTick(() => this.updateIconsPos());
+                if (!localStorage.getItem('vibe_v9_onboarded')) {
+                    this.openAbout();
+                    this.modalOnboarding = true;
+                }
+                const qs = new URLSearchParams(location.search);
+                if (qs.has('reset')) {
+                    this.hardReset();
+                }
+            },
+            unmounted() { window.removeEventListener('resize', this.onResize); },
+            methods: {
+                onResize() { this.viewport.w = window.innerWidth; this.viewport.h = window.innerHeight; this.updateIconsPos(); },
+                updateIconsPos() {
+                    const el = this.$refs.statsBar;
+                    if (!el) return;
+                    const r = el.getBoundingClientRect();
+                    this.iconsPosY = Math.max(8, Math.round(r.top + r.height / 2 - 20));
+                },
+                async loadExternalWords() {
+                    const genIcon = (w) => {
+                        const emojis = ['✨','📘','🧠','🚀','🎯','📝','🔤','🗣️','🎧','🔎','🧩','📚'];
+                        return emojis[(w.charCodeAt(0) + w.length) % emojis.length];
+                    };
+                    const diversify = () => {
+                        const set = new Set(this.masterBank.map(x => x.icon));
+                        if (set.size <= 1) {
+                            this.masterBank = this.masterBank.map(x => ({ ...x, icon: genIcon(x.base) }));
+                        }
+                    };
+                    try {
+                        const res = await fetch(`data/words.xlsx?t=${Date.now()}`);
+                        if (res.ok) {
+                            const buf = await res.arrayBuffer();
+                            const wb = XLSX.read(buf, { type: 'array' });
+                            const sheet = wb.Sheets[wb.SheetNames[0]];
+                            const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                        this.masterBank = rows
+                            .filter(r => r && r.length >= 3 && r[0] !== 'base')
+                            .map(r => {
+                                const base = String(r[0]).trim();
+                                const past = String(r[1]).trim();
+                                const pp = String(r[2]).trim();
+                                const emoji = r[3] ? String(r[3]).trim() : genIcon(base);
+                                return { base, past, participle: pp, icon: emoji };
+                            });
+                            diversify();
+                            return;
+                        }
+                    } catch(_) {}
+                    // Fallback CSV
+                    const res2 = await fetch(`data/words.csv?t=${Date.now()}`);
+                    if (res2.ok) {
+                        const text = await res2.text();
+                        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+                        const rows = lines.map(l => l.split(','));
+                        this.masterBank = rows
+                            .filter(r => r && r.length >= 3 && r[0] !== 'base')
+                            .map(r => {
+                                const base = r[0].trim();
+                                const past = r[1].trim();
+                                const pp = r[2].trim();
+                                const emoji = r[3] ? r[3].trim() : genIcon(base);
+                                return { base, past, participle: pp, icon: emoji };
+                            });
+                        diversify();
+                    }
+                },
+                getDailyKey() {
+                    const d = new Date();
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth()+1).padStart(2,'0');
+                    const day = String(d.getDate()).padStart(2,'0');
+                    return `vibe_v9_daily_${y}${m}${day}`;
+                },
+                loadData() {
+                    (async () => {
+                        await this.loadExternalWords();
+                        const now = Date.now();
+                        const saved = JSON.parse(localStorage.getItem('vibe_v9_learned') || '[]');
+                        this.totalScore = parseInt(localStorage.getItem('vibe_v9_score') || '0');
+                        this.learnedList = saved;
+                        const activeLearnedBases = saved.filter(w => w.nextReview > now).map(w => w.base);
+                        const dueReviews = saved.filter(w => w.nextReview <= now);
+                        const dailyKey = this.getDailyKey();
+                        let daily = JSON.parse(localStorage.getItem(dailyKey) || '[]');
+                        if (daily.length === 0) {
+                            const candidates = this.masterBank.filter(w => !activeLearnedBases.includes(w.base) && !dueReviews.some(d => d.base === w.base));
+                            daily = candidates.slice(0, 20).map(w => w.base);
+                            localStorage.setItem(dailyKey, JSON.stringify(daily));
+                        }
+                        const dailyWords = daily.map(b => this.masterBank.find(w => w.base === b)).filter(Boolean);
+                        this.words = [...dueReviews.map(d => ({ ...d, icon: this.masterBank.find(w => w.base === d.base)?.icon || '📘' })), ...dailyWords];
+                    })();
+                },
+                saveData() {
+                    localStorage.setItem('vibe_v9_learned', JSON.stringify(this.learnedList));
+                    localStorage.setItem('vibe_v9_score', this.totalScore);
+                },
+                hardReset() {
+                    try {
+                        localStorage.removeItem('vibe_v9_learned');
+                        localStorage.removeItem('vibe_v9_score');
+                        // 清除所有当天及历史的 daily 列表
+                        Object.keys(localStorage).forEach(k => {
+                            if (k.startsWith('vibe_v9_daily_')) localStorage.removeItem(k);
+                        });
+                    } catch(_) {}
+                    this.totalScore = 0;
+                    this.learnedList = [];
+                    this.words = [];
+                    this.started = false;
+                    // 重新初始化今日的20个
+                    this.loadData();
+                },
+                startStudy() {
+                    this.started = true;
+                    this.setupAudio();
+                    this.$nextTick(() => { this.initHammer(); this.updateIconsPos(); });
+                },
+                async setupAudio() {
+                    const loadAudio = (audio, sources) => new Promise((resolve) => {
+                        const tryNext = (i) => {
+                            if (i >= sources.length) { resolve(false); return; }
+                            audio.src = sources[i];
+                            let done = false;
+                            const ok = () => { if (!done) { done = true; cleanup(); resolve(true); } };
+                            const bad = () => { if (!done) { done = true; cleanup(); tryNext(i+1); } };
+                            const cleanup = () => {
+                                audio.removeEventListener('canplaythrough', ok);
+                                audio.removeEventListener('loadeddata', ok);
+                                audio.removeEventListener('error', bad);
+                            };
+                            audio.addEventListener('canplaythrough', ok, { once: true });
+                            audio.addEventListener('loadeddata', ok, { once: true });
+                            audio.addEventListener('error', bad, { once: true });
+                            setTimeout(bad, 2000);
+                        };
+                        tryNext(0);
+                    });
+                    const s = (local, primary, alt) => [local, primary, alt].filter(Boolean);
+                    const okFlip = await loadAudio(SOUNDS.flip, s('assets/sounds/flip.mp3', 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', ''));
+                    const okSwipe = await loadAudio(SOUNDS.swipe, s('assets/sounds/swipe.mp3', 'https://www.soundjay.com/buttons/sounds/button-28.mp3', 'https://assets.mixkit.co/active_storage/sfx/1173/1173-preview.mp3'));
+                    const okSuccess = await loadAudio(SOUNDS.success, s('assets/sounds/success.mp3', 'https://www.soundjay.com/buttons/sounds/button-09.mp3', ''));
+                    const okCelebrate = await loadAudio(SOUNDS.celebrate, s('assets/sounds/celebrate.mp3', 'https://www.soundjay.com/misc/sounds/bell-ringing-01.mp3', 'https://assets.mixkit.co/active_storage/sfx/933/933-preview.mp3'));
+                    const okMotivate = await loadAudio(SOUNDS.motivate, s('assets/sounds/motivate.mp3', 'https://www.soundjay.com/buttons/sounds/button-10.mp3', ''));
+                    const okDing = await loadAudio(SOUNDS.ding, s('assets/sounds/ding.mp3', 'https://www.soundjay.com/buttons/sounds/button-3.mp3', ''));
+                    this.audioFallback = { flip: !okFlip, swipe: !okSwipe, success: !okSuccess, celebrate: !okCelebrate, motivate: !okMotivate, ding: !okDing };
+                    SOUNDS.success.volume = 0.35;
+                    SOUNDS.swipe.volume = 0.25;
+                    SOUNDS.flip.volume = 0.25;
+                    SOUNDS.celebrate.volume = 0.35;
+                    SOUNDS.motivate.volume = 0.3;
+                    SOUNDS.ding.volume = 0.35;
+                },
+                playBeep(freq = 800, duration = 180, gain = 0.05) {
+                    try {
+                        const ctx = this._ac || new (window.AudioContext || window.webkitAudioContext)();
+                        this._ac = ctx;
+                        const osc = ctx.createOscillator();
+                        const g = ctx.createGain();
+                        osc.frequency.value = freq;
+                        g.gain.value = gain;
+                        osc.connect(g).connect(ctx.destination);
+                        osc.start();
+                        setTimeout(() => { osc.stop(); }, duration);
+                    } catch(_) {}
+                },
+                playSound(name) {
+                    const map = { flip: 900, swipe: 500, success: 850, celebrate: 1000, motivate: 950, ding: 1200 };
+                    if (this.audioFallback && this.audioFallback[name]) { this.playBeep(map[name] || 800); return; }
+                    const a = SOUNDS[name];
+                    if (!a || !a.src) { this.playBeep(map[name] || 800); return; }
+                    try { a.currentTime = 0; a.play().catch(() => this.playBeep(map[name] || 800)); } catch(_) { this.playBeep(map[name] || 800); }
+                },
+                handleCardClick() {
+                    if (this.isAnimating) return;
+                    this.isFlipped = !this.isFlipped;
+                    this.playSound('flip');
+                    if (this.isFlipped) this.speakWord();
+                    else { window.speechSynthesis.cancel(); this.activeSpeech = ''; }
+                },
+                getMouthPath(side) {
+                    // 动态生成嘴巴路径 - 居中修正 (X+20)
+                    // base: M50,70 Q70,85 90,70 (闭合微笑/平直)
+                    // open: M50,60 Q70,95 90,60 (大嘴)
+                    const open = this.mouthOpen[side];
+                    const state = this.monsterState[side];
+                    
+                    if (state === 'satisfied') {
+                        // 满足时的微笑
+                        return "M50,70 Q70,85 90,70"; 
+                    }
+                    
+                    if (state === 'chewing') {
+                         // 咀嚼时
+                        return "M55,75 Q70,75 85,75";
+                    }
+
+                    // 实时张嘴
+                    // y1: 上唇位置 (70 -> 60)
+                    // y2: 下唇控制点 (85 -> 110)
+                    const y1 = 70 - (open / 3); 
+                    const y2 = 75 + (open * 1.5);
+                    
+                    return `M50,${y1} Q70,${y2} 90,${y1} Z`;
+                },
+                getToothPath(side) {
+                    const open = this.mouthOpen[side];
+                    const state = this.monsterState[side];
+                    // 满足状态也保留牙齿
+                    const maxOpen = 30;
+                    const toothHeight = 12;  // vertical travel toward eyes
+                    const shiftY = (open / maxOpen) * toothHeight;
+                    const x1 = 75;
+                    const x2 = 85;
+                    const yTop = 70 - shiftY;
+                    const qcX = (x1 + x2) / 2;
+                    return `M${x1},${yTop} L${x1},${yTop + 8} Q${qcX},${yTop + 12} ${x2},${yTop + 8} L${x2},${yTop} Z`;
+                },
+                async speakWord() {
+                    const w = this.currentWord;
+                    const clean = (txt) => String(txt).replace(/\s*\/\s*/g, ' ').replace(/\s+/g, ' ').trim();
+                    const speak = (t, type) => new Promise(r => {
+                        const ut = new SpeechSynthesisUtterance(t);
+                        ut.onstart = () => this.activeSpeech = type;
+                        ut.onend = () => { this.activeSpeech = ''; r(); };
+                        window.speechSynthesis.speak(ut);
+                    });
+                    await speak(clean(w.base), 'base');
+                    await speak(clean(w.past), 'past');
+                    await speak(clean(w.participle), 'pp');
+                },
+                initHammer() {
+                    const card = this.$refs.cardWrapper;
+                    if (!card) return;
+                    const mc = new Hammer(card);
+                    mc.on("pan", ev => {
+                        if (this.isAnimating || !this.isFlipped) return;
+                        card.style.transition = 'none';
+                        // 映射为与手势一致的方向：左滑向左、右滑向右（先平移再旋转，避免镜像反转）
+                        card.style.transform = `translateX(${ev.deltaX}px) rotate(${ev.deltaX / 15}deg) rotateY(180deg)`;
+                        
+                        // 实时计算张嘴程度
+                        const threshold = 150;
+                        if (ev.deltaX < 0) { // 向左滑 -> 左怪兽张嘴
+                            this.mouthOpen.left = Math.min(30, Math.abs(ev.deltaX) / 5);
+                            this.mouthOpen.right = 0;
+                        } else { // 向右滑 -> 右怪兽张嘴
+                            this.mouthOpen.right = Math.min(30, Math.abs(ev.deltaX) / 5);
+                            this.mouthOpen.left = 0;
+                        }
+                    });
+                    mc.on("panend", ev => {
+                        if (this.isAnimating || !this.isFlipped) return;
+                        card.style.transition = 'all 0.3s ease';
+                        
+                        // 如果没有触发滑动，嘴巴闭上
+                        if (Math.abs(ev.deltaX) < 140) {
+                             card.style.transform = 'rotateY(180deg)';
+                             this.mouthOpen.left = 0;
+                             this.mouthOpen.right = 0;
+                        } else {
+                            if (ev.deltaX < -140) this.animateSwipe('left');
+                            else if (ev.deltaX > 140) this.animateSwipe('right');
+                        }
+                    });
+                },
+                triggerSwipe(dir) { if (!this.isAnimating) this.animateSwipe(dir); },
+                animateSwipe(direction) {
+                    this.isAnimating = true;
+                    this.swipeClass = '';
+                    
+                    // 1. 保持最大张嘴状态
+                    this.mouthOpen[direction] = 30;
+
+                    if (direction === 'right') {
+                        this.playSound('success');
+                        confetti({ particleCount: 40, origin: { y: 0.8 } });
+                    } else {
+                        this.playSound('swipe');
+                    }
+
+                    // 顶部卡片克隆为 fixed 并飞向对应怪兽的嘴部
+                    const card = this.$refs.cardWrapper;
+                    const mouthEl = document.querySelector(`.monster-${direction} [data-mouth="${direction}"]`);
+                    if (card && mouthEl) {
+                        const cardRect = card.getBoundingClientRect();
+                        const mouthRect = mouthEl.getBoundingClientRect();
+                        const clone = card.cloneNode(true);
+                        clone.style.position = 'fixed';
+                        clone.style.left = cardRect.left + 'px';
+                        clone.style.top = cardRect.top + 'px';
+                        clone.style.width = cardRect.width + 'px';
+                        clone.style.height = cardRect.height + 'px';
+                        clone.style.zIndex = '999';
+                        clone.style.transition = 'transform 0.5s ease, opacity 0.5s ease';
+                        clone.style.transform = 'rotateY(180deg)';
+                        document.body.appendChild(clone);
+                        card.style.opacity = '0';
+                        const cardCX = cardRect.left + cardRect.width / 2;
+                        const cardCY = cardRect.top + cardRect.height / 2;
+                        const mouthCX = mouthRect.left + mouthRect.width / 2;
+                        const mouthCY = mouthRect.top + mouthRect.height / 2;
+                        const dx = mouthCX - cardCX;
+                        const dy = mouthCY - cardCY;
+                        requestAnimationFrame(() => {
+                            // 先平移再缩放，最后再保持翻面状态以不反转方向
+                            clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.2) rotateY(180deg)`;
+                            clone.style.opacity = '0';
+                        });
+                        setTimeout(() => { clone.remove(); }, 550);
+                    }
+
+                    // 同步将 2号卡旋转为 0 度，准备顶替成为新 1号卡
+                    this.promoteSecond = true;
+                    setTimeout(() => { this.promoteSecond = false; }, 500);
+
+                    // 延迟清理状态并切换单词
+                    setTimeout(() => {
+                        const word = this.words.shift();
+                        if (direction === 'left') {
+                            word.stage = 0;
+                            this.words.push(word);
+                        } else { 
+                            word.stage = (word.stage || 0) + 1; 
+                            word.nextReview = Date.now() + ([1, 2, 5, 15, 30][Math.min(word.stage-1, 4)] * 24 * 60 * 60 * 1000); 
+                            this.learnedList.push(word); 
+                        }
+                        
+                        this.saveData();
+                        
+                        // 2. 卡片消失，开始咀嚼 (Chewing)
+                        this.mouthOpen[direction] = 0; // 闭嘴
+                        this.monsterState[direction] = 'chewing';
+                        
+                        setTimeout(() => {
+                            if (direction === 'right') {
+                                this.monsterState.right = 'satisfied';
+                                this.flyHeart('right');
+                                setTimeout(() => { this.monsterState.right = 'idle'; }, 1500);
+                            } else {
+                                this.monsterState.left = 'evil';
+                                setTimeout(() => { this.monsterState.left = 'idle'; }, 1500);
+                            }
+                        }, 800);
+
+                        // 强制重置所有状态
+                        window.speechSynthesis.cancel();
+                        this.activeSpeech = '';
+                        this.isFlipped = false;
+                        this.swipeClass = '';
+                        this.isAnimating = false;
+                        this.mouthOpen.left = 0;
+                        this.mouthOpen.right = 0;
+                        
+                        // 清理 DOM 位置残余
+                        if (this.$refs.cardWrapper) {
+                            this.$refs.cardWrapper.style.transform = '';
+                            this.$refs.cardWrapper.style.transition = 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+                            this.$refs.cardWrapper.style.opacity = '';
+                        }
+                        
+                        // 下方新 2号卡片渐显
+                        this.secondFadeIn = true;
+                        this.$nextTick(() => setTimeout(() => { this.secondFadeIn = false; }, 500));
+
+                        if (this.words.length === 0) {
+                            setTimeout(() => this.playSound('celebrate'), 400);
+                        }
+                        
+                        // 必须等待 Vue 更新 DOM（由 :key 触发）后重新绑定手势
+                        this.$nextTick(() => {
+                            this.initHammer();
+                        });
+                    }, 600); 
+                },
+                flyHeart(direction) {
+                    if (direction !== 'right') return;
+                    const container = this.$refs.heartsContainer;
+                    const trophy = this.$refs.trophyBtn;
+                    const mouthEl = document.querySelector(`.monster-${direction} [data-mouth="${direction}"]`); 
+                    
+                    if (!container || !trophy || !mouthEl) return;
+
+                    const startRect = mouthEl.getBoundingClientRect();
+                    const endRect = trophy.getBoundingClientRect();
+                    
+                    const el = document.createElement('div');
+                    el.classList.add('flying-heart');
+                    el.textContent = '❤️';
+                    
+                    // Start from center of mouth
+                    const startX = startRect.left + startRect.width/2 - 12;
+                    const startY = startRect.top + startRect.height/2 - 12;
+                    
+                    el.style.left = `${startX}px`;
+                    el.style.top = `${startY}px`;
+                    container.appendChild(el);
+
+                    // Trail effect
+                    const trailInterval = setInterval(() => {
+                        const rect = el.getBoundingClientRect();
+                        const trail = document.createElement('div');
+                        trail.classList.add('heart-trail');
+                        trail.textContent = '❤️';
+                        trail.style.left = rect.left + 'px';
+                        trail.style.top = rect.top + 'px';
+                        trail.style.transform = 'scale(0.8)';
+                        container.appendChild(trail);
+                        
+                        requestAnimationFrame(() => {
+                            trail.style.transform = 'scale(0)';
+                            trail.style.opacity = '0';
+                        });
+                        setTimeout(() => trail.remove(), 500);
+                    }, 50);
+
+                    // Target calculation: center of trophy
+                    const targetX = endRect.left + endRect.width/2 - 12;
+                    const targetY = endRect.top + endRect.height/2 - 12;
+
+                    // Force reflow to ensure transition applies every time
+                    void el.offsetHeight;
+                    let done = false;
+                    requestAnimationFrame(() => {
+                        el.style.transform = `translate(${targetX - startX}px, ${targetY - startY}px) scale(0.5)`;
+                        el.style.opacity = '0';
+                    });
+
+                    const fallbackTimer = setTimeout(() => {
+                        clearInterval(trailInterval);
+                        el.remove();
+                        if (done) return;
+                        done = true;
+                        this.playSound('ding');
+                        this.totalScore++;
+                        this.trophyBump = true;
+                        setTimeout(() => this.trophyBump = false, 200);
+                    }, 1200);
+
+                    el.addEventListener('transitionend', () => {
+                        clearInterval(trailInterval);
+                        clearTimeout(fallbackTimer);
+                        el.remove();
+                        if (done) return;
+                        done = true;
+                        this.playSound('ding');
+                        this.totalScore++;
+                        this.trophyBump = true;
+                        setTimeout(() => this.trophyBump = false, 200);
+                    }, { once: true });
+                },
+                openModal(type) {
+                    this.modal.title = type === 'current' ? 'Review List' : 'Mastery Bank';
+                    this.modal.list = type === 'current' ? this.words : this.learnedList;
+                    this.modal.show = true;
+                },
+                openAbout() {
+                    this.modal.title = 'About';
+                    this.modal.list = [];
+                    this.modal.show = true;
+                },
+                closeModal() {
+                    if (!this.modal.show) return;
+                    const panel = this.$refs.modalPanel;
+                    if (!panel) { this.modal.show = false; this.modalOnboarding = false; return; }
+                    if (this.modal.title === 'About' && this.modalOnboarding && !localStorage.getItem('vibe_v9_onboarded')) {
+                        const rect = panel.getBoundingClientRect();
+                        panel.style.position = 'fixed';
+                        panel.style.left = rect.left + 'px';
+                        panel.style.top = rect.top + 'px';
+                        panel.style.width = rect.width + 'px';
+                        panel.style.height = rect.height + 'px';
+                        panel.style.transition = 'transform 0.35s ease, opacity 0.35s ease';
+                        const cx = rect.left + rect.width / 2;
+                        const cy = rect.top + rect.height / 2;
+                        const tx = this.viewport.w - 16;
+                        const ty = this.iconsPosY;
+                        const dx = tx - cx;
+                        const dy = ty - cy;
+                        requestAnimationFrame(() => {
+                            panel.style.transform = `translate(${dx}px, ${dy}px) scale(0.3)`;
+                            panel.style.opacity = '0';
+                        });
+                        setTimeout(() => {
+                            this.modal.show = false;
+                            this.modalOnboarding = false;
+                            localStorage.setItem('vibe_v9_onboarded', '1');
+                            panel.style.transition = '';
+                            panel.style.transform = '';
+                            panel.style.opacity = '';
+                            panel.style.position = '';
+                            panel.style.left = '';
+                            panel.style.top = '';
+                            panel.style.width = '';
+                            panel.style.height = '';
+                        }, 380);
+                    } else {
+                        this.modal.show = false;
+                        this.modalOnboarding = false;
+                    }
+                },
+                resetData() { if(confirm('Reset all?')) { localStorage.clear(); location.reload(); } }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
