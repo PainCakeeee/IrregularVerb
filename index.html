@@ -75,14 +75,8 @@
             transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             pointer-events: none; 
         }
-        
-        /* 
-           Left: Rotate 90deg (Bottom on Left), Scale 1.75
-           Right: Rotate -90deg (Bottom on Right), Scale 1.75
-           Position: Moved inward to 0px to show mouth
-        */
-        .monster-left { left: 0px; transform: translateY(-50%) translateY(28px) rotate(90deg) scale(1.75); }
-        .monster-right { right: 0px; transform: translateY(-50%) translateY(28px) rotate(-90deg) scale(1.75); }
+        .monster-left { left: -43px; transform: translateY(-50%) translateY(28px) rotate(90deg) scale(1.75); }
+        .monster-right { right: -43px; transform: translateY(-50%) translateY(28px) rotate(-90deg) scale(1.75); }
         
         @media (max-width: 640px) {
             .monster-left { left: -10px; transform: translateY(-50%) translateY(28px) rotate(90deg) scale(1.2); }
@@ -91,7 +85,7 @@
 
         .monster-body { 
             transition: transform 0.2s; 
-            transform-origin: center bottom; 
+            transform-origin: center center; 
             overflow: visible; 
         }
 
@@ -101,6 +95,16 @@
         @keyframes chew { 
             0% { transform: translateY(0); } 
             100% { transform: translateY(1.5px); } 
+        }
+        .chew-shake { animation: chewShake 0.22s ease-in-out infinite alternate; }
+        @keyframes chewShake {
+            0% { transform: translateY(0) scale(1); }
+            100% { transform: translateY(2px) scale(0.98); }
+        }
+        .monster-chewing-fast { animation: chewFast 0.18s ease-in-out 6 alternate forwards; }
+        @keyframes chewFast {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(2.5px); }
         }
 
         .monster-satisfied { animation: satisfy 1s forwards; }
@@ -141,94 +145,17 @@
         
         <!-- Flying Hearts Container -->
 
-        <div ref="heartsContainer" class="fixed inset-0 pointer-events-none z-[150]"></div>
+        <div ref="heartsContainer" class="fixed inset-0 pointer-events-none z-[250]"></div>
 
         <!-- Monsters -->
         <div v-if="started" class="monster-container monster-left" :style="monsterTransform.left">
-            <svg width="140" height="140" viewBox="0 0 140 140" class="monster-body" :class="{ 'monster-chewing': monsterState.left === 'chewing', 'monster-satisfied': monsterState.left === 'satisfied', 'monster-evil': monsterState.left === 'evil' }">
-                <!-- Horns -->
-                <path d="M40,40 Q30,10 50,15 L55,45 Z" fill="#60a5fa" stroke="#2563eb" stroke-width="2" />
-                <path d="M40,25 Q45,28 52,22" fill="none" stroke="#2563eb" stroke-width="2" />
-                <path d="M38,32 Q43,35 53,30" fill="none" stroke="#2563eb" stroke-width="2" />
-                
-                <path d="M100,40 Q110,10 90,15 L85,45 Z" fill="#60a5fa" stroke="#2563eb" stroke-width="2" />
-                <path d="M100,25 Q95,28 88,22" fill="none" stroke="#2563eb" stroke-width="2" />
-                <path d="M102,32 Q97,35 87,30" fill="none" stroke="#2563eb" stroke-width="2" />
-
-                <!-- Furry Body Red -->
-                <!-- 使用更圆润但带一点毛刺感的路径 -->
-                <path d="M20,130 Q10,130 10,90 Q5,50 40,35 Q70,25 100,35 Q135,50 130,90 Q130,130 120,130 Z" fill="#93c5fd" stroke="#3b82f6" stroke-width="3" />
-                
-                <!-- Blush -->
-                <ellipse cx="35" cy="75" rx="6" ry="3" fill="#fda4af" opacity="0.8" />
-                <ellipse cx="105" cy="75" rx="6" ry="3" fill="#fda4af" opacity="0.8" />
-
-                <!-- Eyes -->
-                <g v-if="monsterState.left === 'satisfied'">
-                    <!-- Happy Eyes -->
-                    <path d="M45,60 Q55,50 65,60" fill="none" stroke="#3730a3" stroke-width="4" stroke-linecap="round" />
-                    <path d="M75,60 Q85,50 95,60" fill="none" stroke="#3730a3" stroke-width="4" stroke-linecap="round" />
-                </g>
-                <g v-else>
-                    <!-- Big Eyes -->
-                    <circle cx="55" cy="55" r="18" fill="white" stroke="#3b82f6" stroke-width="2" />
-                    <circle cx="55" cy="55" :r="6 + (mouthOpen.left/8)" fill="#4b5563" />
-                    <circle cx="58" cy="52" r="2" fill="white" /> <!-- Eye shine -->
-                    
-                    <circle cx="85" cy="55" r="18" fill="white" stroke="#3b82f6" stroke-width="2" />
-                    <circle cx="85" cy="55" :r="6 + (mouthOpen.left/8)" fill="#4b5563" />
-                    <circle cx="88" cy="52" r="2" fill="white" /> <!-- Eye shine -->
-                </g>
-                
-                <!-- Dynamic Mouth with Tooth -->
-                <g transform="translate(0, 15)">
-                    <path :d="getMouthPath('left')" data-mouth="left" fill="#333" />
-                    <path :d="getToothPath('left')" fill="white" />
-                </g>
-            </svg>
+            <img :src="getMonsterImg('left')" alt="left monster" class="monster-body" :class="{ 'chew-shake': monsterState.left === 'disgust' || monsterState.left === 'chewing' }" />
+            <div class="monster-mouth" data-side="left" style="position:absolute; left:50%; top:50%; width:16px; height:16px; transform:translate(-50%,-50%);"></div>
         </div>
 
         <div v-if="started" class="monster-container monster-right" :style="monsterTransform.right">
-            <svg width="140" height="140" viewBox="0 0 140 140" class="monster-body" :class="{ 'monster-chewing': monsterState.right === 'chewing', 'monster-satisfied': monsterState.right === 'satisfied' }">
-                <!-- Horns -->
-                <path d="M40,40 Q30,10 50,15 L55,45 Z" fill="#86efac" stroke="#15803d" stroke-width="2" />
-                <path d="M40,25 Q45,28 52,22" fill="none" stroke="#15803d" stroke-width="2" />
-                <path d="M38,32 Q43,35 53,30" fill="none" stroke="#15803d" stroke-width="2" />
-                
-                <path d="M100,40 Q110,10 90,15 L85,45 Z" fill="#86efac" stroke="#15803d" stroke-width="2" />
-                <path d="M100,25 Q95,28 88,22" fill="none" stroke="#15803d" stroke-width="2" />
-                <path d="M102,32 Q97,35 87,30" fill="none" stroke="#15803d" stroke-width="2" />
-
-                <!-- Furry Body Green -->
-                <path d="M20,130 Q10,130 10,90 Q5,50 40,35 Q70,25 100,35 Q135,50 130,90 Q130,130 120,130 Z" fill="#bbf7d0" stroke="#22c55e" stroke-width="3" />
-                
-                <!-- Blush -->
-                <ellipse cx="35" cy="75" rx="6" ry="3" fill="#fca5a5" opacity="0.8" />
-                <ellipse cx="105" cy="75" rx="6" ry="3" fill="#fca5a5" opacity="0.8" />
-
-                <!-- Eyes -->
-                <g v-if="monsterState.right === 'satisfied'">
-                    <!-- Happy Eyes -->
-                    <path d="M45,60 Q55,50 65,60" fill="none" stroke="#14532d" stroke-width="4" stroke-linecap="round" />
-                    <path d="M75,60 Q85,50 95,60" fill="none" stroke="#14532d" stroke-width="4" stroke-linecap="round" />
-                </g>
-                <g v-else>
-                    <!-- Big Eyes -->
-                    <circle cx="55" cy="55" r="18" fill="white" stroke="#22c55e" stroke-width="2" />
-                    <circle cx="55" cy="55" :r="6 + (mouthOpen.right/8)" fill="#4b5563" />
-                    <circle cx="58" cy="52" r="2" fill="white" />
-                    
-                    <circle cx="85" cy="55" r="18" fill="white" stroke="#22c55e" stroke-width="2" />
-                    <circle cx="85" cy="55" :r="6 + (mouthOpen.right/8)" fill="#4b5563" />
-                    <circle cx="88" cy="52" r="2" fill="white" />
-                </g>
-                
-                <!-- Dynamic Mouth with Tooth -->
-                <g transform="translate(0, 15)">
-                    <path :d="getMouthPath('right')" data-mouth="right" fill="#333" />
-                    <path :d="getToothPath('right')" fill="white" />
-                </g>
-            </svg>
+            <img :src="getMonsterImg('right')" alt="right monster" class="monster-body" :class="{ 'chew-shake': monsterState.right === 'chewing' }" />
+            <div class="monster-mouth" data-side="right" style="position:absolute; left:50%; top:50%; width:16px; height:16px; transform:translate(-50%,-50%);"></div>
         </div>
 
         <div ref="statsBar" class="grid grid-cols-2 gap-4 mb-8">
@@ -376,7 +303,11 @@
             flip: new Audio(),
             celebrate: new Audio(),
             motivate: new Audio(),
-            ding: new Audio()
+            ding: new Audio(),
+            chewing: new Audio(),
+            spit: new Audio(),
+            gulp: new Audio(),
+            happy: new Audio()
         };
 
         const { createApp } = Vue
@@ -401,7 +332,8 @@
                     audioFallback: {},
                     viewport: { w: window.innerWidth, h: window.innerHeight },
                     iconsPosY: 80,
-                    modalOnboarding: false
+                    modalOnboarding: false,
+                    monsterLean: { left: 0, right: 0 }
                 }
             },
             computed: { 
@@ -411,9 +343,13 @@
                     const areaRatio = (this.viewport.w * this.viewport.h) / (baseW * baseH);
                     const factor = Math.max(0.6, Math.min(2.0, Math.sqrt(areaRatio)));
                     const scaleBase = 1.75 * factor;
-                    const left = `translateY(-50%) translateY(28px) rotate(90deg) scale(${scaleBase})`;
-                    const right = `translateY(-50%) translateY(28px) rotate(-90deg) scale(${scaleBase})`;
-                    return { left: { transform: left }, right: { transform: right } };
+                    // Restore Y-axis to 28px, X-axis base is now -43px (moved back 1/3 of previous 100px shift)
+                    const leftTf = `translateY(-50%) translateY(28px) rotate(90deg) scale(${scaleBase})`;
+                    const rightTf = `translateY(-50%) translateY(28px) rotate(-90deg) scale(${scaleBase})`;
+                    return { 
+                        left: { transform: leftTf, left: `${-43 + (this.monsterLean.left||0)}px` }, 
+                        right: { transform: rightTf, right: `${-43 + (this.monsterLean.right||0)}px` } 
+                    };
                 }
             },
             mounted() { 
@@ -438,14 +374,35 @@
                     const r = el.getBoundingClientRect();
                     this.iconsPosY = Math.max(8, Math.round(r.top + r.height / 2 - 20));
                 },
+                getMonsterImg(side) {
+                    const st = this.monsterState[side];
+                    if (side === 'left') {
+                        if (st === 'openmouth') return 'assets/img/monster_left_openmouth.png';
+                        if (st === 'spit') return 'assets/img/monster_left_spit.png';
+                        if (st === 'disgust' || st === 'chewing') return 'assets/img/monster_left_disgust.png';
+                        return 'assets/img/monster_left_idle.png';
+                    } else {
+                        if (st === 'openmouth') return 'assets/img/monster_right_openmouth.png';
+                        if (st === 'happy' || st === 'satisfied') return 'assets/img/monster_right_happy.png';
+                        return 'assets/img/monster_right_idle.png';
+                    }
+                },
                 async loadExternalWords() {
                     const genIcon = (w) => {
-                        const emojis = ['✨','📘','🧠','🚀','🎯','📝','🔤','🗣️','🎧','🔎','🧩','📚'];
-                        return emojis[(w.charCodeAt(0) + w.length) % emojis.length];
+                        if (!w) return '✨';
+                        const emojis = ['✨','📘','🧠','🚀','🎯','📝','🔤','🗣️','🎧','🔎','🧩','📚','🎵','📀','🧪','🧭','🛠️','🪄','📈','🎓','🎨','🎪','🎭','🎲','🎳','🎻','🎷','🎸','🎹','🎺','🏆','🥇','🏅','🎖️','🎗️'];
+                        let h = 0;
+                        const s = String(w);
+                        for (let i = 0; i < s.length; i++) { 
+                            h = ((h << 5) - h) + s.charCodeAt(i);
+                            h |= 0; // Convert to 32bit integer
+                        }
+                        return emojis[Math.abs(h) % emojis.length];
                     };
                     const diversify = () => {
+                        // Always regenerate icons if they seem default or uniform
                         const set = new Set(this.masterBank.map(x => x.icon));
-                        if (set.size <= 1) {
+                        if (set.size <= 1 || this.masterBank.some(x => !x.icon || x.icon === '✨')) {
                             this.masterBank = this.masterBank.map(x => ({ ...x, icon: genIcon(x.base) }));
                         }
                     };
@@ -504,14 +461,33 @@
                         const activeLearnedBases = saved.filter(w => w.nextReview > now).map(w => w.base);
                         const dueReviews = saved.filter(w => w.nextReview <= now);
                         const dailyKey = this.getDailyKey();
-                        let daily = JSON.parse(localStorage.getItem(dailyKey) || '[]');
-                        if (daily.length === 0) {
-                            const candidates = this.masterBank.filter(w => !activeLearnedBases.includes(w.base) && !dueReviews.some(d => d.base === w.base));
-                            daily = candidates.slice(0, 20).map(w => w.base);
-                            localStorage.setItem(dailyKey, JSON.stringify(daily));
+                        const allDailyKeys = Object.keys(localStorage).filter(k => k.startsWith('vibe_v9_daily_'));
+                        let allDailyBases = [];
+                        for (const k of allDailyKeys) {
+                            try {
+                                const arr = JSON.parse(localStorage.getItem(k) || '[]');
+                                if (Array.isArray(arr)) allDailyBases = allDailyBases.concat(arr);
+                            } catch(_) {}
                         }
-                        const dailyWords = daily.map(b => this.masterBank.find(w => w.base === b)).filter(Boolean);
-                        this.words = [...dueReviews.map(d => ({ ...d, icon: this.masterBank.find(w => w.base === d.base)?.icon || '📘' })), ...dailyWords];
+                        allDailyBases = Array.from(new Set(allDailyBases));
+                        let todayDaily = JSON.parse(localStorage.getItem(dailyKey) || '[]');
+                        if (todayDaily.length === 0) {
+                            const unionSet = new Set(allDailyBases);
+                            const candidates = this.masterBank.filter(w => 
+                                !unionSet.has(w.base) && 
+                                !activeLearnedBases.includes(w.base) && 
+                                !dueReviews.some(d => d.base === w.base)
+                            );
+                            todayDaily = candidates.slice(0, 20).map(w => w.base);
+                            localStorage.setItem(dailyKey, JSON.stringify(todayDaily));
+                            allDailyBases = Array.from(new Set(allDailyBases.concat(todayDaily)));
+                        }
+                        const dailyWordsUnion = allDailyBases
+                            .map(b => this.masterBank.find(w => w.base === b))
+                            .filter(Boolean)
+                            .filter(w => !activeLearnedBases.includes(w.base) && !dueReviews.some(d => d.base === w.base));
+                        const dueWithIcons = dueReviews.map(d => ({ ...d, icon: this.masterBank.find(w => w.base === d.base)?.icon || this.genIcon(d.base) }));
+                        this.words = [...dueWithIcons, ...dailyWordsUnion];
                     })();
                 },
                 saveData() {
@@ -560,13 +536,25 @@
                         tryNext(0);
                     });
                     const s = (local, primary, alt) => [local, primary, alt].filter(Boolean);
-                    const okFlip = await loadAudio(SOUNDS.flip, s('assets/sounds/flip.mp3', 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3', ''));
+                    // User requested replacement for erroring remote file
+                    const okFlip = await loadAudio(SOUNDS.flip, ['assets/sounds/swipe.mp3']); 
                     const okSwipe = await loadAudio(SOUNDS.swipe, s('assets/sounds/swipe.mp3', 'https://www.soundjay.com/buttons/sounds/button-28.mp3', 'https://assets.mixkit.co/active_storage/sfx/1173/1173-preview.mp3'));
                     const okSuccess = await loadAudio(SOUNDS.success, s('assets/sounds/success.mp3', 'https://www.soundjay.com/buttons/sounds/button-09.mp3', ''));
                     const okCelebrate = await loadAudio(SOUNDS.celebrate, s('assets/sounds/celebrate.mp3', 'https://www.soundjay.com/misc/sounds/bell-ringing-01.mp3', 'https://assets.mixkit.co/active_storage/sfx/933/933-preview.mp3'));
                     const okMotivate = await loadAudio(SOUNDS.motivate, s('assets/sounds/motivate.mp3', 'https://www.soundjay.com/buttons/sounds/button-10.mp3', ''));
                     const okDing = await loadAudio(SOUNDS.ding, s('assets/sounds/ding.mp3', 'https://www.soundjay.com/buttons/sounds/button-3.mp3', ''));
-                    this.audioFallback = { flip: !okFlip, swipe: !okSwipe, success: !okSuccess, celebrate: !okCelebrate, motivate: !okMotivate, ding: !okDing };
+                    
+                    // New monster sounds
+                    const okChewing = await loadAudio(SOUNDS.chewing, ['assets/sounds/chewing.m4a']);
+                    const okSpit = await loadAudio(SOUNDS.spit, ['assets/sounds/spit.m4a']);
+                    const okGulp = await loadAudio(SOUNDS.gulp, ['assets/sounds/gulp.m4a']);
+                    const okHappy = await loadAudio(SOUNDS.happy, ['assets/sounds/happy.m4a']);
+
+                    this.audioFallback = { 
+                        flip: !okFlip, swipe: !okSwipe, success: !okSuccess, 
+                        celebrate: !okCelebrate, motivate: !okMotivate, ding: !okDing,
+                        chewing: !okChewing, spit: !okSpit, gulp: !okGulp, happy: !okHappy
+                    };
                     SOUNDS.success.volume = 0.35;
                     SOUNDS.swipe.volume = 0.25;
                     SOUNDS.flip.volume = 0.25;
@@ -592,7 +580,10 @@
                     if (this.audioFallback && this.audioFallback[name]) { this.playBeep(map[name] || 800); return; }
                     const a = SOUNDS[name];
                     if (!a || !a.src) { this.playBeep(map[name] || 800); return; }
-                    try { a.currentTime = 0; a.play().catch(() => this.playBeep(map[name] || 800)); } catch(_) { this.playBeep(map[name] || 800); }
+                    try { 
+                        a.currentTime = 0; 
+                        a.play().catch(() => this.playBeep(map[name] || 800)); 
+                    } catch(_) { this.playBeep(map[name] || 800); }
                 },
                 handleCardClick() {
                     if (this.isAnimating) return;
@@ -667,9 +658,17 @@
                         if (ev.deltaX < 0) { // 向左滑 -> 左怪兽张嘴
                             this.mouthOpen.left = Math.min(30, Math.abs(ev.deltaX) / 5);
                             this.mouthOpen.right = 0;
+                            this.monsterLean.left = Math.min(20, Math.abs(ev.deltaX) / 10);
+                            this.monsterLean.right = 0;
+                            this.monsterState.left = 'openmouth';
+                            this.monsterState.right = 'idle';
                         } else { // 向右滑 -> 右怪兽张嘴
                             this.mouthOpen.right = Math.min(30, Math.abs(ev.deltaX) / 5);
                             this.mouthOpen.left = 0;
+                            this.monsterLean.right = Math.min(20, Math.abs(ev.deltaX) / 10);
+                            this.monsterLean.left = 0;
+                            this.monsterState.right = 'openmouth';
+                            this.monsterState.left = 'idle';
                         }
                     });
                     mc.on("panend", ev => {
@@ -681,6 +680,10 @@
                              card.style.transform = 'rotateY(180deg)';
                              this.mouthOpen.left = 0;
                              this.mouthOpen.right = 0;
+                             this.monsterLean.left = 0;
+                             this.monsterLean.right = 0;
+                             this.monsterState.left = 'idle';
+                             this.monsterState.right = 'idle';
                         } else {
                             if (ev.deltaX < -140) this.animateSwipe('left');
                             else if (ev.deltaX > 140) this.animateSwipe('right');
@@ -694,6 +697,7 @@
                     
                     // 1. 保持最大张嘴状态
                     this.mouthOpen[direction] = 30;
+                    this.monsterState[direction] = 'openmouth';
 
                     if (direction === 'right') {
                         this.playSound('success');
@@ -704,7 +708,7 @@
 
                     // 顶部卡片克隆为 fixed 并飞向对应怪兽的嘴部
                     const card = this.$refs.cardWrapper;
-                    const mouthEl = document.querySelector(`.monster-${direction} [data-mouth="${direction}"]`);
+                    const mouthEl = document.querySelector(`.monster-${direction} .monster-mouth`);
                     if (card && mouthEl) {
                         const cardRect = card.getBoundingClientRect();
                         const mouthRect = mouthEl.getBoundingClientRect();
@@ -752,19 +756,29 @@
                         this.saveData();
                         
                         // 2. 卡片消失，开始咀嚼 (Chewing)
-                        this.mouthOpen[direction] = 0; // 闭嘴
-                        this.monsterState[direction] = 'chewing';
-                        
-                        setTimeout(() => {
-                            if (direction === 'right') {
-                                this.monsterState.right = 'satisfied';
-                                this.flyHeart('right');
-                                setTimeout(() => { this.monsterState.right = 'idle'; }, 1500);
-                            } else {
-                                this.monsterState.left = 'evil';
-                                setTimeout(() => { this.monsterState.left = 'idle'; }, 1500);
-                            }
-                        }, 800);
+                    this.mouthOpen[direction] = 0;
+                    if (direction === 'right') {
+                        this.monsterState.right = 'chewing'; // Use chewing state first
+                        this.playSound('gulp'); // Play Gulp
+                    } else {
+                        this.monsterState.left = 'chewing'; // Was disgust, now chewing as requested
+                        this.playSound('chewing'); // Play Chewing
+                    }
+                    
+                    setTimeout(() => {
+                        if (direction === 'right') {
+                            this.monsterState.right = 'happy'; // Switch to happy when heart flies
+                            this.playSound('happy'); // Play Happy
+                            this.flyHeart('right');
+                            setTimeout(() => { this.monsterState.right = 'idle'; }, 2000);
+                        } else {
+                            this.monsterState.left = 'spit';
+                            this.playSound('spit'); // Play Spit
+                            this.spitCardBack();
+                            // Hold spit state for duration of spit animation (approx 800ms)
+                            setTimeout(() => { this.monsterState.left = 'idle'; }, 1000);
+                        }
+                    }, direction === 'right' ? 600 : 1200); // Right: faster feedback; Left: longer chew
 
                         // 强制重置所有状态
                         window.speechSynthesis.cancel();
@@ -774,6 +788,8 @@
                         this.isAnimating = false;
                         this.mouthOpen.left = 0;
                         this.mouthOpen.right = 0;
+                        this.monsterLean.left = 0;
+                        this.monsterLean.right = 0;
                         
                         // 清理 DOM 位置残余
                         if (this.$refs.cardWrapper) {
@@ -800,7 +816,7 @@
                     if (direction !== 'right') return;
                     const container = this.$refs.heartsContainer;
                     const trophy = this.$refs.trophyBtn;
-                    const mouthEl = document.querySelector(`.monster-${direction} [data-mouth="${direction}"]`); 
+                    const mouthEl = document.querySelector(`.monster-${direction} .monster-mouth`); 
                     
                     if (!container || !trophy || !mouthEl) return;
 
@@ -809,11 +825,12 @@
                     
                     const el = document.createElement('div');
                     el.classList.add('flying-heart');
+                    el.style.fontSize = '48px';
                     el.textContent = '❤️';
                     
                     // Start from center of mouth
-                    const startX = startRect.left + startRect.width/2 - 12;
-                    const startY = startRect.top + startRect.height/2 - 12;
+                    const startX = startRect.left + startRect.width/2 - 24;
+                    const startY = startRect.top + startRect.height/2 - 24;
                     
                     el.style.left = `${startX}px`;
                     el.style.top = `${startY}px`;
@@ -825,6 +842,7 @@
                         const trail = document.createElement('div');
                         trail.classList.add('heart-trail');
                         trail.textContent = '❤️';
+                        trail.style.fontSize = '48px';
                         trail.style.left = rect.left + 'px';
                         trail.style.top = rect.top + 'px';
                         trail.style.transform = 'scale(0.8)';
@@ -835,11 +853,11 @@
                             trail.style.opacity = '0';
                         });
                         setTimeout(() => trail.remove(), 500);
-                    }, 50);
+                    }, 25);
 
                     // Target calculation: center of trophy
-                    const targetX = endRect.left + endRect.width/2 - 12;
-                    const targetY = endRect.top + endRect.height/2 - 12;
+                    const targetX = endRect.left + endRect.width/2 - 24;
+                    const targetY = endRect.top + endRect.height/2 - 24;
 
                     // Force reflow to ensure transition applies every time
                     void el.offsetHeight;
@@ -871,6 +889,62 @@
                         this.trophyBump = true;
                         setTimeout(() => this.trophyBump = false, 200);
                     }, { once: true });
+                },
+                spitCardBack() {
+                    const mouthEl = document.querySelector(`.monster-left .monster-mouth`);
+                    const containerEl = document.querySelector('.card-container');
+                    if (!mouthEl || !containerEl) return;
+                    
+                    // Feedback on central card deck - Trigger immediately
+                    const cardWrapper = document.querySelector('.flashcard-wrapper');
+                    if (cardWrapper) {
+                        // 0.1s scale to 1.1
+                        cardWrapper.style.transition = 'transform 0.1s ease-out';
+                        cardWrapper.style.transform = 'scale(1.1)';
+                        
+                        setTimeout(() => {
+                            // After 0.25s hold (total 0.35s from start), scale back to 1.0 in 0.1s
+                            cardWrapper.style.transition = 'transform 0.1s ease-in';
+                            cardWrapper.style.transform = 'scale(1)';
+                            
+                            setTimeout(() => {
+                                cardWrapper.style.transition = '';
+                                cardWrapper.style.transform = ''; // Critical fix: clear transform to allow flip
+                            }, 100);
+                        }, 100 + 250);
+                    }
+
+                    const startRect = mouthEl.getBoundingClientRect();
+                    const target = containerEl.getBoundingClientRect();
+                    const startX = startRect.left + startRect.width/2 - 20;
+                    const startY = startRect.top + startRect.height/2 - 28;
+                    const targetX = target.left + target.width/2 - 40;
+                    const targetY = target.top + target.height/2 - 60;
+                    const el = document.createElement('div');
+                    el.style.position = 'fixed';
+                    el.style.left = `${startX}px`;
+                    el.style.top = `${startY}px`;
+                    el.style.width = `80px`;
+                    el.style.height = `120px`;
+                    el.style.borderRadius = '16px';
+                    el.style.background = 'white';
+                    el.style.boxShadow = '0 15px 30px rgba(0,0,0,0.15)';
+                    el.style.border = '4px solid #f1f5f9';
+                    el.style.zIndex = '1000';
+                    el.style.opacity = '1';
+                    el.style.transition = 'transform 0.18s ease, opacity 0.5s ease';
+                    document.body.appendChild(el);
+                    requestAnimationFrame(() => {
+                        el.style.transform = `translate(-24px, -6px) rotate(-12deg) scale(0.92)`;
+                    });
+                    setTimeout(() => {
+                        el.style.transition = 'transform 0.38s cubic-bezier(0.16,1,0.3,1), opacity 0.5s ease';
+                        el.style.transform = `translate(${targetX - startX}px, ${targetY - startY}px) rotate(12deg) scale(1.05)`;
+                        setTimeout(() => {
+                            // Immediate disappearance
+                            el.remove();
+                        }, 420);
+                    }, 40);
                 },
                 openModal(type) {
                     this.modal.title = type === 'current' ? 'Review List' : 'Mastery Bank';
